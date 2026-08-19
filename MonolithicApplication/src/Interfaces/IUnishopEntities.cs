@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  * SPDX-License-Identifier: MIT-0
  *
@@ -17,11 +17,9 @@
  */
 
 using System;
-using System.Collections.Generic;
-using System.Data.Entity;
-using System.Data.Entity.Infrastructure;
-using System.Diagnostics.CodeAnalysis;
 using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 
 namespace UnicornShopLegacy.Interfaces
 {
@@ -33,7 +31,7 @@ namespace UnicornShopLegacy.Interfaces
 
         DbSet<basket> baskets { get; set; }
 
-        DbEntityEntry Entry(object entity);
+        EntityEntry Entry(object entity);
 
         Task<int> SaveChangesAsync();
 

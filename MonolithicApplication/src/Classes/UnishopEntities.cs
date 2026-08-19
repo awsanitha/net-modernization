@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  * SPDX-License-Identifier: MIT-0
  *
@@ -16,19 +16,28 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-using System.Data.Entity;
+using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
 using UnicornShopLegacy.Interfaces;
 
 namespace UnicornShopLegacy
 {
     /// <summary>
-    /// Partial class only to implement IUnishipEntities interface and provide mockable method instead of Entry()
+    /// Partial class only to implement IUnishopEntities interface and provide mockable method instead of Entry()
     /// </summary>
     public partial class UnishopEntities : IUnishopEntities
     {
         public void SetModified(object entity)
         {
             this.Entry(entity).State = EntityState.Modified;
+        }
+
+        /// <summary>
+        /// No-arg SaveChangesAsync wrapper to satisfy the IUnishopEntities interface.
+        /// </summary>
+        Task<int> IUnishopEntities.SaveChangesAsync()
+        {
+            return base.SaveChangesAsync();
         }
     }
 }
