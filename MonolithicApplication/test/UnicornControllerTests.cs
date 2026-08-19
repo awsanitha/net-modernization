@@ -1,27 +1,14 @@
-﻿/*
+/*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  * SPDX-License-Identifier: MIT-0
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy of this
- * software and associated documentation files (the "Software"), to deal in the Software
- * without restriction, including without limitation the rights to use, copy, modify,
- * merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
- * permit persons to whom the Software is furnished to do so.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
- * INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
- * PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
- * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
- * OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
- * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
 using System;
-using System.Data.Entity.Infrastructure;
 using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
-using System.Web.Http.Results;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using FluentAssertions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Moq;
@@ -67,11 +54,12 @@ namespace UnicornShopLegacy.Tests
             this.unishopDbContext.inventories.Add(new inventory { unicorn_id = guid });
 
             var actionResult = await this.unicornController.GetUnicorn(guid);
-            var contentResult = actionResult as OkNegotiatedContentResult<inventory>;
+            var contentResult = actionResult.Result as OkObjectResult;
 
             Assert.IsNotNull(contentResult);
-            Assert.IsNotNull(contentResult.Content);
-            Assert.AreEqual(guid, contentResult.Content.unicorn_id);
+            var unicorn = contentResult.Value as inventory;
+            Assert.IsNotNull(unicorn);
+            Assert.AreEqual(guid, unicorn.unicorn_id);
         }
 
         [TestMethod]
@@ -81,7 +69,7 @@ namespace UnicornShopLegacy.Tests
 
             var actionResult = await this.unicornController.GetUnicorn(guid);
 
-            Assert.IsInstanceOfType(actionResult, typeof(NotFoundResult));
+            Assert.IsInstanceOfType(actionResult.Result, typeof(NotFoundResult));
         }
 
         // it seems there is no validation for the unicorn model
@@ -94,7 +82,7 @@ namespace UnicornShopLegacy.Tests
 
             var actionResult = await this.unicornController.PutUnicorn(guid, unicorn);
 
-            Assert.IsInstanceOfType(actionResult, typeof(InvalidModelStateResult));
+            Assert.IsInstanceOfType(actionResult, typeof(BadRequestObjectResult));
         }
 
         [TestMethod]
@@ -113,13 +101,13 @@ namespace UnicornShopLegacy.Tests
         {
             var guid = Guid.NewGuid();
             var unicornWithSameId = new inventory { unicorn_id = guid };
-            this.mockedUnicornEntities.Setup(x => x.SaveChangesAsync()).Returns(Task.FromResult(0));
+            this.mockedUnicornEntities.Setup(x => x.SaveChangesAsync(default)).Returns(Task.FromResult(0));
 
             var actionResult = await this.unicornController.PutUnicorn(guid, unicornWithSameId);
             var statusCodeResult = actionResult as StatusCodeResult;
 
             Assert.IsNotNull(statusCodeResult);
-            Assert.AreEqual(HttpStatusCode.NoContent, statusCodeResult.StatusCode);
+            Assert.AreEqual((int)HttpStatusCode.NoContent, statusCodeResult.StatusCode);
         }
 
         [TestMethod]
@@ -128,9 +116,9 @@ namespace UnicornShopLegacy.Tests
             var guid = Guid.NewGuid();
             var unicornWithSameId = new inventory { unicorn_id = guid };
             this.unishopDbContext.inventories.Add(unicornWithSameId);
-            this.mockedUnicornEntities.Setup(x => x.SaveChangesAsync()).Throws(new DbUpdateConcurrencyException());
+            this.mockedUnicornEntities.Setup(x => x.SaveChangesAsync(default)).Throws(new DbUpdateConcurrencyException());
 
-            await Assert.ThrowsExceptionAsync<DbUpdateConcurrencyException>(async () => { await this.unicornController.PutUnicorn(guid, unicornWithSameId);  });
+            await Assert.ThrowsExceptionAsync<DbUpdateConcurrencyException>(async () => { await this.unicornController.PutUnicorn(guid, unicornWithSameId); });
         }
 
         [TestMethod]
@@ -138,7 +126,7 @@ namespace UnicornShopLegacy.Tests
         {
             var guid = Guid.NewGuid();
             var unicornWithSameId = new inventory { unicorn_id = guid };
-            this.mockedUnicornEntities.Setup(x => x.SaveChangesAsync()).Throws(new DbUpdateConcurrencyException());
+            this.mockedUnicornEntities.Setup(x => x.SaveChangesAsync(default)).Throws(new DbUpdateConcurrencyException());
 
             var actionResult = await this.unicornController.PutUnicorn(guid, unicornWithSameId);
 
@@ -153,7 +141,7 @@ namespace UnicornShopLegacy.Tests
 
             var actionResult = await this.unicornController.PostUnicorn(unicorn);
 
-            Assert.IsInstanceOfType(actionResult, typeof(InvalidModelStateResult));
+            Assert.IsInstanceOfType(actionResult.Result, typeof(BadRequestObjectResult));
         }
 
         [TestMethod]
@@ -161,13 +149,15 @@ namespace UnicornShopLegacy.Tests
         {
             var guid = Guid.NewGuid();
             var unicorn = new inventory { unicorn_id = guid };
-            this.mockedUnicornEntities.Setup(x => x.SaveChangesAsync()).Returns(Task.FromResult(0));
+            this.mockedUnicornEntities.Setup(x => x.SaveChangesAsync(default)).Returns(Task.FromResult(0));
 
             var actionResult = await this.unicornController.PostUnicorn(unicorn);
-            var createdResult = actionResult as CreatedAtRouteNegotiatedContentResult<inventory>;
+            var createdResult = actionResult.Result as CreatedAtRouteResult;
 
             Assert.IsNotNull(createdResult);
-            Assert.AreEqual(unicorn.unicorn_id, createdResult.Content.unicorn_id);
+            var createdUnicorn = createdResult.Value as inventory;
+            Assert.IsNotNull(createdUnicorn);
+            Assert.AreEqual(unicorn.unicorn_id, createdUnicorn.unicorn_id);
         }
 
         [TestMethod]
@@ -177,11 +167,11 @@ namespace UnicornShopLegacy.Tests
             var unicorn = new inventory { unicorn_id = guid };
 
             var actionResult = await this.unicornController.PostUnicorn(unicorn);
-            var createdResult = actionResult as CreatedAtRouteNegotiatedContentResult<inventory>;
+            var createdResult = actionResult.Result as CreatedAtRouteResult;
 
             Assert.IsNotNull(createdResult);
             Assert.AreEqual("DefaultApi", createdResult.RouteName);
-            Assert.AreEqual(unicorn.unicorn_id, createdResult.RouteValues["id"]);
+            Assert.AreEqual(unicorn.unicorn_id, createdResult.RouteValues!["id"]);
         }
 
         [TestMethod]
@@ -191,7 +181,7 @@ namespace UnicornShopLegacy.Tests
 
             var actionResult = await this.unicornController.DeleteUnicorn(guid);
 
-            Assert.IsInstanceOfType(actionResult, typeof(NotFoundResult));
+            Assert.IsInstanceOfType(actionResult.Result, typeof(NotFoundResult));
         }
 
         [TestMethod]
@@ -200,7 +190,7 @@ namespace UnicornShopLegacy.Tests
             var guid = Guid.NewGuid();
             var unicorn = new inventory { unicorn_id = guid };
             this.unishopDbContext.inventories.Add(unicorn);
-            this.mockedUnicornEntities.Setup(x => x.SaveChangesAsync()).Returns(Task.FromResult(0));
+            this.mockedUnicornEntities.Setup(x => x.SaveChangesAsync(default)).Returns(Task.FromResult(0));
 
             await this.unicornController.DeleteUnicorn(guid);
 
@@ -213,14 +203,15 @@ namespace UnicornShopLegacy.Tests
             var guid = Guid.NewGuid();
             var unicorn = new inventory { unicorn_id = guid };
             this.unishopDbContext.inventories.Add(unicorn);
-            this.mockedUnicornEntities.Setup(x => x.SaveChangesAsync()).Returns(Task.FromResult(0));
+            this.mockedUnicornEntities.Setup(x => x.SaveChangesAsync(default)).Returns(Task.FromResult(0));
 
             var actionResult = await this.unicornController.DeleteUnicorn(guid);
-            var contentResult = actionResult as OkNegotiatedContentResult<inventory>;
+            var contentResult = actionResult.Result as OkObjectResult;
 
             Assert.IsNotNull(contentResult);
-            Assert.IsNotNull(contentResult.Content);
-            Assert.AreEqual(guid, contentResult.Content.unicorn_id);
+            var deletedUnicorn = contentResult.Value as inventory;
+            Assert.IsNotNull(deletedUnicorn);
+            Assert.AreEqual(guid, deletedUnicorn.unicorn_id);
         }
 
         private void GivenUnishopDbContext()

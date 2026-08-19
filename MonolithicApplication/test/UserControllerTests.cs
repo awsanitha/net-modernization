@@ -1,30 +1,14 @@
-﻿/*
+/*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  * SPDX-License-Identifier: MIT-0
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy of this
- * software and associated documentation files (the "Software"), to deal in the Software
- * without restriction, including without limitation the rights to use, copy, modify,
- * merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
- * permit persons to whom the Software is furnished to do so.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
- * INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
- * PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
- * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
- * OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
- * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
 using System;
 using System.Linq;
 using System.Net;
-using System.Security.Cryptography.X509Certificates;
-using System.Web.Http;
-using System.Web.Http.Results;
+using Microsoft.AspNetCore.Mvc;
 using FluentAssertions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-
 using Moq;
 using UnicornShopLegacy.Controllers;
 using UnicornShopLegacy.Interfaces;
@@ -58,13 +42,13 @@ namespace UnicornShopLegacy.Tests
             var result = this.userController.PostUser(user).GetAwaiter().GetResult();
             Assert.IsNotNull(result);
 
-            Assert.IsInstanceOfType(result, typeof(CreatedAtRouteNegotiatedContentResult<user>));
-            var confirmed_result = result as CreatedAtRouteNegotiatedContentResult<user>;
-            Assert.AreEqual(confirmed_result.RouteName, "DefaultApi");
-            Assert.AreEqual(confirmed_result.RouteValues["id"], confirmed_result.Content.user_id);
-            Assert.AreEqual(confirmed_result.Content.user_id, user.user_id);
-
-            // this.unishopDbContext.user.Remove(confirmed_result.Content);
+            Assert.IsInstanceOfType(result.Result, typeof(CreatedAtRouteResult));
+            var confirmed_result = result.Result as CreatedAtRouteResult;
+            Assert.AreEqual(confirmed_result!.RouteName, "DefaultApi");
+            var createdUser = confirmed_result.Value as user;
+            Assert.IsNotNull(createdUser);
+            Assert.AreEqual(confirmed_result.RouteValues!["id"], createdUser.user_id);
+            Assert.AreEqual(createdUser.user_id, user.user_id);
         }
 
         [TestMethod]
@@ -75,11 +59,10 @@ namespace UnicornShopLegacy.Tests
 
             var user = new user { user_id = Guid.NewGuid(), email = "qwertyuio@gmail.com", password = "123456" };
             var result = this.userController.PostUser(user).GetAwaiter().GetResult();
-            var confirmed_result = result as CreatedAtRouteNegotiatedContentResult<user>;
 
             result = this.userController.PostUser(user).GetAwaiter().GetResult();
             Assert.IsNotNull(result);
-            Assert.IsInstanceOfType(result, typeof(BadRequestResult));
+            Assert.IsInstanceOfType(result.Result, typeof(BadRequestResult));
         }
 
         [TestMethod]
@@ -95,7 +78,7 @@ namespace UnicornShopLegacy.Tests
             var result = this.userController.PostLogin(user_temp_new).GetAwaiter().GetResult();
             Assert.IsNotNull(result);
 
-            Assert.IsInstanceOfType(result, typeof(OkNegotiatedContentResult<user>));
+            Assert.IsInstanceOfType(result.Result, typeof(OkObjectResult));
         }
 
         [TestMethod]
@@ -107,7 +90,7 @@ namespace UnicornShopLegacy.Tests
             var user_temp_new = new user { user_id = Guid.NewGuid(), email = "56@gmail.com", password = "123456" };
             var result = this.userController.PostLogin(user_temp_new).GetAwaiter().GetResult();
             Assert.IsNotNull(result);
-            Assert.IsInstanceOfType(result, typeof(NotFoundResult));
+            Assert.IsInstanceOfType(result.Result, typeof(NotFoundResult));
         }
 
         [TestMethod]
@@ -122,7 +105,7 @@ namespace UnicornShopLegacy.Tests
             var user_temp_new = new user { user_id = Guid.NewGuid(), email = "56@gmail.com", password = "12345" };
             var result = this.userController.PostLogin(user_temp_new).GetAwaiter().GetResult();
             Assert.IsNotNull(result);
-            Assert.IsInstanceOfType(result, typeof(BadRequestResult));
+            Assert.IsInstanceOfType(result.Result, typeof(BadRequestResult));
         }
 
         private void GivenUnishopDbContext()

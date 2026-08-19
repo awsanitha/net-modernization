@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  * SPDX-License-Identifier: MIT-0
  *
@@ -17,28 +17,20 @@
  */
 
 using System;
-using System.Data.Entity;
-using System.Data.Entity.Infrastructure;
 using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
-using System.Web.Http;
-using System.Web.Http.Cors;
-using System.Web.Http.Description;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using UnicornShopLegacy.Interfaces;
-using EntityState = System.Data.Entity.EntityState;
 
 namespace UnicornShopLegacy.Controllers
 {
-    [EnableCors(origins: "*", headers: "*", methods: "*")]
-    public class BasketController : ApiController
+    [ApiController]
+    [Route("api/[controller]")]
+    public class BasketController : ControllerBase
     {
-        private IUnishopEntities unishopEntitiesContext;
-
-        public BasketController()
-        {
-            this.unishopEntitiesContext = new UnishopEntities();
-        }
+        private readonly IUnishopEntities unishopEntitiesContext;
 
         public BasketController(IUnishopEntities databaseContext)
         {
@@ -46,20 +38,21 @@ namespace UnicornShopLegacy.Controllers
         }
 
         // GET: api/Basket
+        [HttpGet]
         public IQueryable<basket> GetUnicornBaskets()
         {
             return this.unishopEntitiesContext.baskets;
         }
 
         // GET: api/Basket/f29b70d8-2994-4cea-861e-61903801dd98
-        [ResponseType(typeof(basket))]
-        public async Task<IHttpActionResult> GetUnicornBasket(Guid id)
+        [HttpGet("{id}")]
+        public async Task<ActionResult> GetUnicornBasket(Guid id)
         {
             var unicornBasket = from ub in this.unishopEntitiesContext.baskets
-                                          where ub.user_id == id
-                                                 select ub;
+                                where ub.user_id == id
+                                select ub;
 
-            if (unicornBasket.Count() == 0)
+            if (!unicornBasket.Any())
             {
                 return this.NotFound();
             }
@@ -68,8 +61,8 @@ namespace UnicornShopLegacy.Controllers
         }
 
         // PUT: api/Basket/5
-        [ResponseType(typeof(void))]
-        public async Task<IHttpActionResult> PutUnicornBasket(Guid id, basket unicornBasket)
+        [HttpPut("{id}")]
+        public async Task<ActionResult> PutUnicornBasket(Guid id, basket unicornBasket)
         {
             if (!this.ModelState.IsValid)
             {
@@ -99,12 +92,12 @@ namespace UnicornShopLegacy.Controllers
                 }
             }
 
-            return this.StatusCode(HttpStatusCode.NoContent);
+            return this.StatusCode((int)HttpStatusCode.NoContent);
         }
 
         // POST: api/Basket
-        [ResponseType(typeof(basket))]
-        public async Task<IHttpActionResult> PostUnicornBasket(basket unicornBasket)
+        [HttpPost]
+        public async Task<ActionResult<basket>> PostUnicornBasket(basket unicornBasket)
         {
             if (!this.ModelState.IsValid)
             {
@@ -119,10 +112,10 @@ namespace UnicornShopLegacy.Controllers
         }
 
         // DELETE: api/Basket/1d6d0345-b3e5-4e0f-87a3-0a98b9a17073
-        [ResponseType(typeof(basket))]
-        public async Task<IHttpActionResult> DeleteUnicornBasket(Guid id)
+        [HttpDelete("{id}")]
+        public async Task<ActionResult<basket>> DeleteUnicornBasket(Guid id)
         {
-            basket unicornBasket = await this.unishopEntitiesContext.baskets.FindAsync(id);
+            basket? unicornBasket = await this.unishopEntitiesContext.baskets.FindAsync(id);
             if (unicornBasket == null)
             {
                 return this.NotFound();
@@ -132,16 +125,6 @@ namespace UnicornShopLegacy.Controllers
             await this.unishopEntitiesContext.SaveChangesAsync();
 
             return this.Ok(unicornBasket);
-        }
-
-        protected override void Dispose(bool disposing)
-        {
-            if (disposing)
-            {
-                this.unishopEntitiesContext.Dispose();
-            }
-
-            base.Dispose(disposing);
         }
 
         private bool UnicornBasketExists(Guid id)
