@@ -1,127 +1,110 @@
-﻿/*
+/*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  * SPDX-License-Identifier: MIT-0
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy of this
- * software and associated documentation files (the "Software"), to deal in the Software
- * without restriction, including without limitation the rights to use, copy, modify,
- * merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
- * permit persons to whom the Software is furnished to do so.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
- * INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
- * PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
- * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
- * OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
- * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
+
+#nullable enable
 
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Data.Entity;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
+using Microsoft.EntityFrameworkCore.Metadata;
 
 namespace UnicornShopLegacy.Tests
 {
-    internal class FakeDbSet<T> : DbSet<T>, IDbSet<T>
+    internal class FakeDbSet<T> : DbSet<T>, IQueryable<T>, IAsyncEnumerable<T>
         where T : class
     {
         private readonly List<T> data;
+        private readonly IQueryable<T> queryable;
 
         public FakeDbSet()
         {
             this.data = new List<T>();
+            this.queryable = this.data.AsQueryable();
         }
 
-        Expression IQueryable.Expression
+        public override EntityEntry<T> Add(T entity)
         {
-            get { return this.data.AsQueryable().Expression; }
+            this.data.Add(entity);
+            return null!;
         }
 
-        IQueryProvider IQueryable.Provider
+        public override EntityEntry<T> Remove(T entity)
         {
-            get { return this.data.AsQueryable().Provider; }
+            this.data.Remove(entity);
+            return null!;
         }
 
-        public List<T> Local
+        public override ValueTask<T?> FindAsync(params object?[]? keyValues)
         {
-            get { return this.data; }
+            return new ValueTask<T?>(this.Find(keyValues));
         }
 
-        Type IQueryable.ElementType
+        public override ValueTask<T?> FindAsync(object?[]? keyValues, CancellationToken cancellationToken)
         {
-            get { return this.data.AsQueryable().ElementType; }
+            return new ValueTask<T?>(this.Find(keyValues));
         }
 
-        public override T Find(params object[] keyValues)
+        public override T? Find(params object?[]? keyValues)
         {
             throw new NotImplementedException("Derive from FakeDbSet<T> and override Find");
         }
 
-        public override T Add(T item)
-        {
-            this.data.Add(item);
-            return item;
-        }
+        public override IEntityType EntityType => throw new NotImplementedException();
 
-        public override T Remove(T item)
-        {
-            this.data.Remove(item);
-            return item;
-        }
+        Type IQueryable.ElementType => queryable.ElementType;
 
-        public override T Attach(T item)
-        {
-            return null;
-        }
+        Expression IQueryable.Expression => queryable.Expression;
 
-        public T Detach(T item)
-        {
-            this.data.Remove(item);
-            return item;
-        }
+        IQueryProvider IQueryable.Provider => queryable.Provider;
 
-        public override T Create()
-        {
-            return Activator.CreateInstance<T>();
-        }
+        IEnumerator<T> IEnumerable<T>.GetEnumerator() => data.GetEnumerator();
 
-        public TDerivedEntity Create<TDerivedEntity>()
-            where TDerivedEntity : class, T
-        {
-            return Activator.CreateInstance<TDerivedEntity>();
-        }
+        IEnumerator IEnumerable.GetEnumerator() => data.GetEnumerator();
 
-        public override IEnumerable<T> AddRange(IEnumerable<T> entities)
+        IAsyncEnumerator<T> IAsyncEnumerable<T>.GetAsyncEnumerator(CancellationToken cancellationToken)
+            => new AsyncEnumeratorWrapper<T>(data.GetEnumerator());
+
+        public new void AddRange(IEnumerable<T> entities)
         {
             this.data.AddRange(entities);
-            return this.data;
         }
 
-        public override IEnumerable<T> RemoveRange(IEnumerable<T> entities)
+        public new void RemoveRange(IEnumerable<T> entities)
         {
-            for (int i = entities.Count() - 1; i >= 0; i--)
+            foreach (var e in new List<T>(entities))
             {
-                T entity = entities.ElementAt(i);
-                if (this.data.Contains(entity))
-                {
-                    this.Remove(entity);
-                }
+                this.data.Remove(e);
             }
-
-            return this;
         }
 
-        IEnumerator IEnumerable.GetEnumerator()
+        public new List<T> Local => this.data;
+    }
+
+    internal class AsyncEnumeratorWrapper<T> : IAsyncEnumerator<T>
+    {
+        private readonly IEnumerator<T> inner;
+
+        public AsyncEnumeratorWrapper(IEnumerator<T> inner)
         {
-            return this.data.GetEnumerator();
+            this.inner = inner;
         }
 
-        IEnumerator<T> IEnumerable<T>.GetEnumerator()
+        public T Current => inner.Current;
+
+        public ValueTask<bool> MoveNextAsync() => new ValueTask<bool>(inner.MoveNext());
+
+        public ValueTask DisposeAsync()
         {
-            return this.data.GetEnumerator();
+            inner.Dispose();
+            return default;
         }
     }
 }

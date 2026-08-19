@@ -11,8 +11,10 @@ namespace UnicornShopLegacy
 {
     using System;
     using System.Collections.Generic;
-    
+
+#pragma warning disable CS8981 // Type name only contains lower-cased ascii characters
     public partial class basket
+#pragma warning restore CS8981
     {
         public System.Guid basket_id { get; set; }
         public System.Guid user_id { get; set; }
