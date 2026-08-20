@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  * SPDX-License-Identifier: MIT-0
  *
@@ -17,12 +17,12 @@
  */
 
 using System;
-using System.Data.Entity.Infrastructure;
 using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
-using System.Web.Http.Results;
 using FluentAssertions;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Moq;
 using UnicornShopLegacy.Controllers;
@@ -33,9 +33,9 @@ namespace UnicornShopLegacy.Tests
     [TestClass]
     public class UnicornControllerTests
     {
-        private IUnishopEntities unishopDbContext;
-        private UnicornController unicornController;
-        private Mock<IUnishopEntities> mockedUnicornEntities;
+        private IUnishopEntities unishopDbContext = null!;
+        private UnicornController unicornController = null!;
+        private Mock<IUnishopEntities> mockedUnicornEntities = null!;
 
         [TestInitialize]
         public void Init()
@@ -67,11 +67,13 @@ namespace UnicornShopLegacy.Tests
             this.unishopDbContext.inventories.Add(new inventory { unicorn_id = guid });
 
             var actionResult = await this.unicornController.GetUnicorn(guid);
-            var contentResult = actionResult as OkNegotiatedContentResult<inventory>;
+            var contentResult = actionResult as OkObjectResult;
 
             Assert.IsNotNull(contentResult);
-            Assert.IsNotNull(contentResult.Content);
-            Assert.AreEqual(guid, contentResult.Content.unicorn_id);
+            Assert.IsNotNull(contentResult.Value);
+            var content = contentResult.Value as inventory;
+            Assert.IsNotNull(content);
+            Assert.AreEqual(guid, content.unicorn_id);
         }
 
         [TestMethod]
@@ -94,7 +96,8 @@ namespace UnicornShopLegacy.Tests
 
             var actionResult = await this.unicornController.PutUnicorn(guid, unicorn);
 
-            Assert.IsInstanceOfType(actionResult, typeof(InvalidModelStateResult));
+            // ASP.NET Core returns BadRequestObjectResult for invalid model state
+            Assert.IsInstanceOfType(actionResult, typeof(BadRequestObjectResult));
         }
 
         [TestMethod]
@@ -119,7 +122,7 @@ namespace UnicornShopLegacy.Tests
             var statusCodeResult = actionResult as StatusCodeResult;
 
             Assert.IsNotNull(statusCodeResult);
-            Assert.AreEqual(HttpStatusCode.NoContent, statusCodeResult.StatusCode);
+            Assert.AreEqual((int)HttpStatusCode.NoContent, statusCodeResult.StatusCode);
         }
 
         [TestMethod]
@@ -130,7 +133,7 @@ namespace UnicornShopLegacy.Tests
             this.unishopDbContext.inventories.Add(unicornWithSameId);
             this.mockedUnicornEntities.Setup(x => x.SaveChangesAsync()).Throws(new DbUpdateConcurrencyException());
 
-            await Assert.ThrowsExceptionAsync<DbUpdateConcurrencyException>(async () => { await this.unicornController.PutUnicorn(guid, unicornWithSameId);  });
+            await Assert.ThrowsExceptionAsync<DbUpdateConcurrencyException>(async () => { await this.unicornController.PutUnicorn(guid, unicornWithSameId); });
         }
 
         [TestMethod]
@@ -153,7 +156,8 @@ namespace UnicornShopLegacy.Tests
 
             var actionResult = await this.unicornController.PostUnicorn(unicorn);
 
-            Assert.IsInstanceOfType(actionResult, typeof(InvalidModelStateResult));
+            // ASP.NET Core returns BadRequestObjectResult for invalid model state
+            Assert.IsInstanceOfType(actionResult, typeof(BadRequestObjectResult));
         }
 
         [TestMethod]
@@ -164,10 +168,12 @@ namespace UnicornShopLegacy.Tests
             this.mockedUnicornEntities.Setup(x => x.SaveChangesAsync()).Returns(Task.FromResult(0));
 
             var actionResult = await this.unicornController.PostUnicorn(unicorn);
-            var createdResult = actionResult as CreatedAtRouteNegotiatedContentResult<inventory>;
+            var createdResult = actionResult as CreatedAtRouteResult;
 
             Assert.IsNotNull(createdResult);
-            Assert.AreEqual(unicorn.unicorn_id, createdResult.Content.unicorn_id);
+            var content = createdResult.Value as inventory;
+            Assert.IsNotNull(content);
+            Assert.AreEqual(unicorn.unicorn_id, content.unicorn_id);
         }
 
         [TestMethod]
@@ -177,11 +183,11 @@ namespace UnicornShopLegacy.Tests
             var unicorn = new inventory { unicorn_id = guid };
 
             var actionResult = await this.unicornController.PostUnicorn(unicorn);
-            var createdResult = actionResult as CreatedAtRouteNegotiatedContentResult<inventory>;
+            var createdResult = actionResult as CreatedAtRouteResult;
 
             Assert.IsNotNull(createdResult);
             Assert.AreEqual("DefaultApi", createdResult.RouteName);
-            Assert.AreEqual(unicorn.unicorn_id, createdResult.RouteValues["id"]);
+            Assert.AreEqual(unicorn.unicorn_id, createdResult.RouteValues!["id"]);
         }
 
         [TestMethod]
@@ -216,11 +222,13 @@ namespace UnicornShopLegacy.Tests
             this.mockedUnicornEntities.Setup(x => x.SaveChangesAsync()).Returns(Task.FromResult(0));
 
             var actionResult = await this.unicornController.DeleteUnicorn(guid);
-            var contentResult = actionResult as OkNegotiatedContentResult<inventory>;
+            var contentResult = actionResult as OkObjectResult;
 
             Assert.IsNotNull(contentResult);
-            Assert.IsNotNull(contentResult.Content);
-            Assert.AreEqual(guid, contentResult.Content.unicorn_id);
+            Assert.IsNotNull(contentResult.Value);
+            var content = contentResult.Value as inventory;
+            Assert.IsNotNull(content);
+            Assert.AreEqual(guid, content.unicorn_id);
         }
 
         private void GivenUnishopDbContext()

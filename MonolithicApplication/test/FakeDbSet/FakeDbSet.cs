@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  * SPDX-License-Identifier: MIT-0
  *
@@ -19,109 +19,93 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Data.Entity;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
+using Microsoft.EntityFrameworkCore.Metadata;
 
 namespace UnicornShopLegacy.Tests
 {
-    internal class FakeDbSet<T> : DbSet<T>, IDbSet<T>
+    /// <summary>
+    /// In-memory fake DbSet for unit testing without a real database.
+    /// Inherits from DbSet[T] (EF Core) and implements IQueryable via a backing List.
+    /// </summary>
+    internal class FakeDbSet<T> : DbSet<T>, IQueryable<T>, IAsyncEnumerable<T>
         where T : class
     {
-        private readonly List<T> data;
+        private readonly List<T> _data = new();
 
-        public FakeDbSet()
+        // EF Core abstract property — not used in tests but must be implemented
+        public override IEntityType EntityType => throw new NotImplementedException("EntityType is not supported in FakeDbSet");
+
+        public new List<T> Local => _data;
+
+        IQueryProvider IQueryable.Provider => _data.AsQueryable().Provider;
+        Expression IQueryable.Expression => _data.AsQueryable().Expression;
+        Type IQueryable.ElementType => _data.AsQueryable().ElementType;
+
+        public override T? Find(params object?[]? keyValues)
+            => throw new NotImplementedException("Derive from FakeDbSet<T> and override Find");
+
+        public override ValueTask<T?> FindAsync(params object?[]? keyValues)
+            => new(Find(keyValues));
+
+        public override ValueTask<T?> FindAsync(object?[]? keyValues, CancellationToken cancellationToken)
+            => new(Find(keyValues));
+
+        public override EntityEntry<T> Add(T item)
         {
-            this.data = new List<T>();
+            _data.Add(item);
+            return null!;
         }
 
-        Expression IQueryable.Expression
+        public override EntityEntry<T> Remove(T item)
         {
-            get { return this.data.AsQueryable().Expression; }
+            _data.Remove(item);
+            return null!;
         }
 
-        IQueryProvider IQueryable.Provider
-        {
-            get { return this.data.AsQueryable().Provider; }
-        }
+        public override EntityEntry<T> Attach(T item)
+            => null!;
 
-        public List<T> Local
-        {
-            get { return this.data; }
-        }
+        public override void AddRange(IEnumerable<T> entities)
+            => _data.AddRange(entities);
 
-        Type IQueryable.ElementType
-        {
-            get { return this.data.AsQueryable().ElementType; }
-        }
+        public override void AddRange(params T[] entities)
+            => _data.AddRange(entities);
 
-        public override T Find(params object[] keyValues)
+        public override void RemoveRange(IEnumerable<T> entities)
         {
-            throw new NotImplementedException("Derive from FakeDbSet<T> and override Find");
-        }
-
-        public override T Add(T item)
-        {
-            this.data.Add(item);
-            return item;
-        }
-
-        public override T Remove(T item)
-        {
-            this.data.Remove(item);
-            return item;
-        }
-
-        public override T Attach(T item)
-        {
-            return null;
-        }
-
-        public T Detach(T item)
-        {
-            this.data.Remove(item);
-            return item;
-        }
-
-        public override T Create()
-        {
-            return Activator.CreateInstance<T>();
-        }
-
-        public TDerivedEntity Create<TDerivedEntity>()
-            where TDerivedEntity : class, T
-        {
-            return Activator.CreateInstance<TDerivedEntity>();
-        }
-
-        public override IEnumerable<T> AddRange(IEnumerable<T> entities)
-        {
-            this.data.AddRange(entities);
-            return this.data;
-        }
-
-        public override IEnumerable<T> RemoveRange(IEnumerable<T> entities)
-        {
-            for (int i = entities.Count() - 1; i >= 0; i--)
+            foreach (var entity in entities.ToList())
             {
-                T entity = entities.ElementAt(i);
-                if (this.data.Contains(entity))
-                {
-                    this.Remove(entity);
-                }
+                _data.Remove(entity);
             }
-
-            return this;
         }
 
-        IEnumerator IEnumerable.GetEnumerator()
+        public override void RemoveRange(params T[] entities)
         {
-            return this.data.GetEnumerator();
+            foreach (var entity in entities)
+            {
+                _data.Remove(entity);
+            }
         }
 
-        IEnumerator<T> IEnumerable<T>.GetEnumerator()
+        IEnumerator IEnumerable.GetEnumerator() => _data.GetEnumerator();
+        IEnumerator<T> IEnumerable<T>.GetEnumerator() => _data.GetEnumerator();
+
+        IAsyncEnumerator<T> IAsyncEnumerable<T>.GetAsyncEnumerator(CancellationToken cancellationToken)
+            => new AsyncEnumerator(_data.GetEnumerator());
+
+        private sealed class AsyncEnumerator : IAsyncEnumerator<T>
         {
-            return this.data.GetEnumerator();
+            private readonly IEnumerator<T> _inner;
+            public AsyncEnumerator(IEnumerator<T> inner) => _inner = inner;
+            public T Current => _inner.Current;
+            public ValueTask<bool> MoveNextAsync() => new(_inner.MoveNext());
+            public ValueTask DisposeAsync() { _inner.Dispose(); return ValueTask.CompletedTask; }
         }
     }
 }
