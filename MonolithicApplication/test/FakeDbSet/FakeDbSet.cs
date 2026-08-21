@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  * SPDX-License-Identifier: MIT-0
  *
@@ -19,109 +19,112 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Data.Entity;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Metadata;
 
 namespace UnicornShopLegacy.Tests
 {
-    internal class FakeDbSet<T> : DbSet<T>, IDbSet<T>
+    /// <summary>
+    /// In-memory fake DbSet for unit testing with EF Core.
+    /// Backed by an in-memory List&lt;T&gt;; LINQ queries run against that list.
+    /// </summary>
+    internal class FakeDbSet<T> : DbSet<T>, IQueryable<T>
         where T : class
     {
-        private readonly List<T> data;
+        private readonly List<T> _data = new List<T>();
 
-        public FakeDbSet()
+        /// <summary>Access the underlying list from derived fake-set classes.</summary>
+        protected List<T> InternalData => _data;
+
+        // ── IQueryable routing ──────────────────────────────────────────────────────
+        // EF Core's abstract AsQueryable() is the single hook point; overriding it
+        // makes all IQueryable/IEnumerable surface area work against our list.
+        public override IQueryable<T> AsQueryable() => _data.AsQueryable();
+
+        // IAsyncEnumerable is not used by our unit tests; throw to surface accidental use.
+        public override IAsyncEnumerable<T> AsAsyncEnumerable()
+            => throw new NotSupportedException("Async enumeration is not supported by FakeDbSet.");
+
+        // ── Mutating operations ─────────────────────────────────────────────────────
+        public override EntityEntry<T> Add(T entity)
         {
-            this.data = new List<T>();
+            _data.Add(entity);
+            return null!; // return value is never used in the tested code
         }
 
-        Expression IQueryable.Expression
+        public override void AddRange(IEnumerable<T> entities)
         {
-            get { return this.data.AsQueryable().Expression; }
+            _data.AddRange(entities);
         }
 
-        IQueryProvider IQueryable.Provider
+        public override void AddRange(params T[] entities)
         {
-            get { return this.data.AsQueryable().Provider; }
+            _data.AddRange(entities);
         }
 
-        public List<T> Local
+        public override EntityEntry<T> Remove(T entity)
         {
-            get { return this.data; }
+            _data.Remove(entity);
+            return null!;
         }
 
-        Type IQueryable.ElementType
+        public override void RemoveRange(IEnumerable<T> entities)
         {
-            get { return this.data.AsQueryable().ElementType; }
+            foreach (var e in entities.ToList())
+                _data.Remove(e);
         }
 
-        public override T Find(params object[] keyValues)
+        public override void RemoveRange(params T[] entities)
         {
-            throw new NotImplementedException("Derive from FakeDbSet<T> and override Find");
+            foreach (var e in entities)
+                _data.Remove(e);
         }
 
-        public override T Add(T item)
+        public override EntityEntry<T> Update(T entity)
         {
-            this.data.Add(item);
-            return item;
+            // No-op for in-memory test fake
+            return null!;
         }
 
-        public override T Remove(T item)
-        {
-            this.data.Remove(item);
-            return item;
-        }
+        public override void UpdateRange(IEnumerable<T> entities) { }
+        public override void UpdateRange(params T[] entities) { }
 
-        public override T Attach(T item)
-        {
-            return null;
-        }
+        public override EntityEntry<T> Attach(T entity) => null!;
+        public override void AttachRange(IEnumerable<T> entities) { }
+        public override void AttachRange(params T[] entities) { }
 
-        public T Detach(T item)
-        {
-            this.data.Remove(item);
-            return item;
-        }
+        // ── Find / FindAsync ─────────────────────────────────────────────────────────
+        // Derived classes (FakeUnicornDbSet, etc.) must override these.
+        public override T? Find(params object?[]? keyValues)
+            => throw new NotImplementedException("Override Find in a derived FakeDbSet.");
 
-        public override T Create()
-        {
-            return Activator.CreateInstance<T>();
-        }
+        public override ValueTask<T?> FindAsync(params object?[]? keyValues)
+            => new ValueTask<T?>(Find(keyValues));
 
-        public TDerivedEntity Create<TDerivedEntity>()
-            where TDerivedEntity : class, T
-        {
-            return Activator.CreateInstance<TDerivedEntity>();
-        }
+        public override ValueTask<T?> FindAsync(object?[]? keyValues, CancellationToken cancellationToken)
+            => new ValueTask<T?>(Find(keyValues));
 
-        public override IEnumerable<T> AddRange(IEnumerable<T> entities)
-        {
-            this.data.AddRange(entities);
-            return this.data;
-        }
+        // ── Local view (not used in unit tests; returns null to avoid EF Core internals) ──
+        public override LocalView<T> Local => throw new NotSupportedException(
+            "Local is not supported on FakeDbSet; use InternalData instead.");
 
-        public override IEnumerable<T> RemoveRange(IEnumerable<T> entities)
-        {
-            for (int i = entities.Count() - 1; i >= 0; i--)
-            {
-                T entity = entities.ElementAt(i);
-                if (this.data.Contains(entity))
-                {
-                    this.Remove(entity);
-                }
-            }
+        // ── IEntityType from DbSet<T>.EntityType ────────────────────────────────────
+        // Required abstract member; not used in unit tests.
+        public override IEntityType EntityType => throw new NotSupportedException(
+            "EntityType is not supported on FakeDbSet.");
 
-            return this;
-        }
-
-        IEnumerator IEnumerable.GetEnumerator()
-        {
-            return this.data.GetEnumerator();
-        }
-
-        IEnumerator<T> IEnumerable<T>.GetEnumerator()
-        {
-            return this.data.GetEnumerator();
-        }
+        // ── IQueryable<T> explicit interface members ─────────────────────────────────
+        // These delegate to AsQueryable() so LINQ works correctly.
+        IEnumerator<T> IEnumerable<T>.GetEnumerator() => _data.GetEnumerator();
+        IEnumerator IEnumerable.GetEnumerator() => _data.GetEnumerator();
+        Type IQueryable.ElementType => _data.AsQueryable().ElementType;
+        Expression IQueryable.Expression => _data.AsQueryable().Expression;
+        IQueryProvider IQueryable.Provider => _data.AsQueryable().Provider;
     }
 }

@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  * SPDX-License-Identifier: MIT-0
  *
@@ -17,33 +17,32 @@
  */
 
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace UnicornShopLegacy.Tests
 {
     internal class FakeBasketDbSet : FakeDbSet<basket>
     {
-        public override basket Find(params object[] keyValues)
+        public override basket? Find(params object?[]? keyValues)
         {
-            Debug.Assert(keyValues.Length == 1, "There should be only one key for Unicorn entity");
-            var targetId = keyValues[0] as Guid?;
+            Debug.Assert(keyValues != null && keyValues.Length == 1, "There should be only one key for Basket entity");
+            var targetId = keyValues![0] as Guid?;
 
             if (targetId == null)
             {
                 return null;
             }
 
-            var data = this.Local;
-            return data.FirstOrDefault<basket>(u => u.basket_id == targetId);
+            return this.InternalData.FirstOrDefault(u => u.basket_id == targetId);
         }
 
-        public override Task<basket> FindAsync(params object[] keyValues)
-        {
-            return Task.FromResult(this.Find(keyValues));
-        }
+        public override ValueTask<basket?> FindAsync(params object?[]? keyValues)
+            => new ValueTask<basket?>(this.Find(keyValues));
+
+        public override ValueTask<basket?> FindAsync(object?[]? keyValues, CancellationToken cancellationToken)
+            => new ValueTask<basket?>(this.Find(keyValues));
     }
 }

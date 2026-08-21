@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  * SPDX-License-Identifier: MIT-0
  *
@@ -17,36 +17,33 @@
  */
 
 using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.Data.Entity;
 using System.Diagnostics;
 using System.Linq;
-using System.Linq.Expressions;
+using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace UnicornShopLegacy.Tests
 {
     internal class FakeUnicornDbSet : FakeDbSet<inventory>
     {
-        public override inventory Find(params object[] keyValues)
+        public override inventory? Find(params object?[]? keyValues)
         {
-            Debug.Assert(keyValues.Length == 1, "There should be only one key for Unicorn entity");
+            Debug.Assert(keyValues != null && keyValues.Length == 1, "There should be only one key for Unicorn entity");
 
-            var targetId = keyValues[0] as Guid?;
+            var targetId = keyValues![0] as Guid?;
 
             if (targetId == null)
             {
                 return null;
             }
 
-            return this.Local.FirstOrDefault<inventory>(u => u.unicorn_id == targetId);
+            return this.InternalData.FirstOrDefault(u => u.unicorn_id == targetId);
         }
 
-        public override Task<inventory> FindAsync(params object[] keyValues)
-        {
-            return Task.FromResult(this.Find(keyValues));
-        }
+        public override ValueTask<inventory?> FindAsync(params object?[]? keyValues)
+            => new ValueTask<inventory?>(this.Find(keyValues));
+
+        public override ValueTask<inventory?> FindAsync(object?[]? keyValues, CancellationToken cancellationToken)
+            => new ValueTask<inventory?>(this.Find(keyValues));
     }
 }

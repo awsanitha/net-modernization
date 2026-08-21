@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  * SPDX-License-Identifier: MIT-0
  *
@@ -17,21 +17,18 @@
  */
 
 using System;
-using System.Collections.Generic;
-using System.Data.Entity.Infrastructure;
 using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
-using System.Web.Http;
-using System.Web.Http.Cors;
-using System.Web.Http.Description;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using UnicornShopLegacy.Interfaces;
-using EntityState = System.Data.Entity.EntityState;
 
 namespace UnicornShopLegacy.Controllers
 {
-    [EnableCors(origins: "*", headers: "*", methods: "*")]
-    public class UnicornController : ApiController
+    [ApiController]
+    [Route("api/[controller]")]
+    public class UnicornController : ControllerBase
     {
         private IUnishopEntities unishopEntitiesContext;
 
@@ -46,16 +43,17 @@ namespace UnicornShopLegacy.Controllers
         }
 
         // GET: api/Unicorn
+        [HttpGet]
         public IQueryable<inventory> GetUnicorns()
         {
             return this.unishopEntitiesContext.inventories;
         }
 
         // GET: api/Unicorn/1d6d0345-b3e5-4e0f-87a3-0a98b9a17073
-        [ResponseType(typeof(inventory))]
-        public async Task<IHttpActionResult> GetUnicorn(Guid id)
+        [HttpGet("{id}")]
+        public async Task<IActionResult> GetUnicorn(Guid id)
         {
-            inventory unicorn = await this.unishopEntitiesContext.inventories.FindAsync(id);
+            inventory? unicorn = await this.unishopEntitiesContext.inventories.FindAsync(id);
             if (unicorn == null)
             {
                 return this.NotFound();
@@ -65,8 +63,8 @@ namespace UnicornShopLegacy.Controllers
         }
 
         // PUT: api/Unicorn/1d6d0345-b3e5-4e0f-87a3-0a98b9a17073
-        [ResponseType(typeof(void))]
-        public async Task<IHttpActionResult> PutUnicorn(Guid id, inventory unicorn)
+        [HttpPut("{id}")]
+        public async Task<IActionResult> PutUnicorn(Guid id, inventory unicorn)
         {
             if (!this.ModelState.IsValid)
             {
@@ -96,12 +94,12 @@ namespace UnicornShopLegacy.Controllers
                 }
             }
 
-            return this.StatusCode(HttpStatusCode.NoContent);
+            return this.NoContent();
         }
 
         // POST: api/Unicorn
-        [ResponseType(typeof(inventory))]
-        public async Task<IHttpActionResult> PostUnicorn(inventory unicorn)
+        [HttpPost]
+        public async Task<IActionResult> PostUnicorn(inventory unicorn)
         {
             if (!this.ModelState.IsValid)
             {
@@ -116,10 +114,10 @@ namespace UnicornShopLegacy.Controllers
         }
 
         // DELETE: api/Unicorn/1d6d0345-b3e5-4e0f-87a3-0a98b9a17073
-        [ResponseType(typeof(inventory))]
-        public async Task<IHttpActionResult> DeleteUnicorn(Guid id)
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> DeleteUnicorn(Guid id)
         {
-            inventory unicorn = await this.unishopEntitiesContext.inventories.FindAsync(id);
+            inventory? unicorn = await this.unishopEntitiesContext.inventories.FindAsync(id);
             if (unicorn == null)
             {
                 return this.NotFound();
@@ -129,16 +127,6 @@ namespace UnicornShopLegacy.Controllers
             await this.unishopEntitiesContext.SaveChangesAsync();
 
             return this.Ok(unicorn);
-        }
-
-        protected override void Dispose(bool disposing)
-        {
-            if (disposing)
-            {
-                this.unishopEntitiesContext.Dispose();
-            }
-
-            base.Dispose(disposing);
         }
 
         private bool UnicornExists(Guid id)

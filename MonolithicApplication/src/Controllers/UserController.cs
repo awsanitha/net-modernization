@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  * SPDX-License-Identifier: MIT-0
  *
@@ -17,24 +17,17 @@
  */
 
 using System;
-using System.Data.Entity;
-using System.Data.Entity.Infrastructure;
 using System.Linq;
-using System.Net;
 using System.Security.Cryptography;
-using System.Security.Policy;
 using System.Threading.Tasks;
-using System.Web.Http;
-using System.Web.Http.Cors;
-using System.Web.Http.Description;
-using Microsoft.Ajax.Utilities;
+using Microsoft.AspNetCore.Mvc;
 using UnicornShopLegacy.Interfaces;
-using EntityState = System.Data.Entity.EntityState;
 
 namespace UnicornShopLegacy.Controllers
 {
-    [EnableCors(origins: "*", headers: "*", methods: "*")]
-    public class UserController : ApiController
+    [ApiController]
+    [Route("api/[controller]")]
+    public class UserController : ControllerBase
     {
         private IUnishopEntities unishopEntitiesContext;
 
@@ -48,29 +41,29 @@ namespace UnicornShopLegacy.Controllers
             this.unishopEntitiesContext = databaseContext;
         }
 
+        [HttpGet]
         public IQueryable<user> GetUsers()
         {
             return this.unishopEntitiesContext.users;
         }
 
         // POST: api/User
-        [ResponseType(typeof(user))]
-        public async Task<IHttpActionResult> PostUser([FromBody] user user)
+        [HttpPost]
+        public async Task<IActionResult> PostUser([FromBody] user user)
         {
             var search = from u in this.unishopEntitiesContext.users
-                                where u.email == user.email
+                         where u.email == user.email
                          select u;
 
-            if (user.email.IsNullOrWhiteSpace() || !user.email.Contains('@') || !user.email.Contains('.') || search.Count() != 0)
+            if (string.IsNullOrWhiteSpace(user.email) || !user.email.Contains('@') || !user.email.Contains('.') || search.Count() != 0)
             {
                 return this.BadRequest();
             }
 
-            byte[] salt;
-            new RNGCryptoServiceProvider().GetBytes(salt = new byte[16]);
-            var pbkdf2 = new Rfc2898DeriveBytes(user.password, salt, 10000);
+            byte[] salt = new byte[16];
+            RandomNumberGenerator.Fill(salt);
 
-            byte[] hash = pbkdf2.GetBytes(20);
+            byte[] hash = Rfc2898DeriveBytes.Pbkdf2(user.password!, salt, 10000, HashAlgorithmName.SHA256, 20);
             byte[] hashBytes = new byte[36];
 
             Array.Copy(salt, 0, hashBytes, 0, 16);
@@ -88,25 +81,24 @@ namespace UnicornShopLegacy.Controllers
         // POST: api/user/login
         [Route("api/user/login")]
         [HttpPost]
-        public async Task<IHttpActionResult> PostLogin([FromBody] user login)
+        public async Task<IActionResult> PostLogin([FromBody] user login)
         {
             var search = from u in this.unishopEntitiesContext.users
-                               where u.email == login.email
-                               select u;
+                         where u.email == login.email
+                         select u;
 
-            if (search.Count() == 0)
+            if (!search.Any())
             {
                 return this.NotFound();
             }
 
             var user = search.First();
 
-            byte[] hashBytes = Convert.FromBase64String(user.password);
+            byte[] hashBytes = Convert.FromBase64String(user.password!);
 
             byte[] salt = new byte[16];
             Array.Copy(hashBytes, 0, salt, 0, 16);
-            var pbkdf2 = new Rfc2898DeriveBytes(login.password, salt, 10000);
-            byte[] hash = pbkdf2.GetBytes(20);
+            byte[] hash = Rfc2898DeriveBytes.Pbkdf2(login.password!, salt, 10000, HashAlgorithmName.SHA256, 20);
 
             bool match = true;
             for (int i = 0; i < 20; i++)
@@ -123,16 +115,6 @@ namespace UnicornShopLegacy.Controllers
             }
 
             return this.Ok(user);
-        }
-
-        protected override void Dispose(bool disposing)
-        {
-            if (disposing)
-            {
-                this.unishopEntitiesContext.Dispose();
-            }
-
-            base.Dispose(disposing);
         }
 
         private bool UserExists(Guid id)
