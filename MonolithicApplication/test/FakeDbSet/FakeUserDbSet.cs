@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  * SPDX-License-Identifier: MIT-0
  *
@@ -16,34 +16,33 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 
 namespace UnicornShopLegacy.Tests
 {
     internal class FakeUserDbSet : FakeDbSet<user>
     {
-        public override user Find(params object[] keyValues)
+        public override user? Find(params object?[]? keyValues)
         {
-            Debug.Assert(keyValues.Length == 1, "There should be only one key for Unicorn entity");
-            var targetEmail = keyValues[0];
+            Debug.Assert(keyValues != null && keyValues.Length == 1, "There should be only one key for User entity");
+            var targetEmail = keyValues![0];
 
             if (targetEmail == null)
             {
                 return null;
             }
 
-            var data = this.Local;
-            return data.FirstOrDefault<user>(u => u.email == targetEmail);
+            return this.InternalData.FirstOrDefault(u => u.email == (string)targetEmail);
         }
 
-        public override Task<user> FindAsync(params object[] keyValues)
-        {
-            return Task.FromResult(this.Find(keyValues));
-        }
+        public override ValueTask<user?> FindAsync(params object?[]? keyValues)
+            => new ValueTask<user?>(this.Find(keyValues));
+
+        public override ValueTask<user?> FindAsync(object?[]? keyValues, CancellationToken cancellationToken)
+            => new ValueTask<user?>(this.Find(keyValues));
     }
 }
